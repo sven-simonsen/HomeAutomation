@@ -1,21 +1,30 @@
-#include <DHT.h>
-#define DHT_TYPE DHT22
+#include "DHT.h"
 
+// Uncomment one of the lines below for whatever DHT sensor type you're using!
+//#define DHTTYPE DHT11   // DHT 11
+//#define DHTTYPE DHT21   // DHT 21 (AM2301)
+#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
 
-#define DHT_PIN D1
+// DHT Sensor
+uint8_t DHTPin = D2;
+               
+// Initialize DHT sensor.
+DHT dht(DHTPin, DHTTYPE);
 
-DHT dht(DHT_PIN, DHT_TYPE);
-
+float Temperature;
+float Humidity;
+ 
 void setup() {
   Serial.begin(9600);
+  delay(2000);
+  
+  pinMode(DHTPin, INPUT);
+
   dht.begin();
-  // wait for serial to initialise
-  while(!Serial){}
 }
 
-// runs over and over again
 void loop() {
-	float h = dht.readHumidity();
+  float h = dht.readHumidity();
 	float t = dht.readTemperature();
 	
 	Serial.print("Temperatur: ");
