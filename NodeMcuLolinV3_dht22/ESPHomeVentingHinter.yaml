@@ -1,0 +1,87 @@
+# settings config constants
+substitutions:
+  update_in: 60s
+  venting_delay: 5min
+  venting_treshold: "0"
+  
+button:
+  - platform: restart
+    name: "Restart"
+    
+sensor:
+  - platform: dht
+    pin: D1
+    model: DHT22
+    temperature:
+      name: "T"
+      id: air_temperature_inside
+    humidity:
+      name: "RLF"
+      id: relative_humidity_inside
+      accuracy_decimals: 1
+      filters:
+      - offset: 4
+    update_interval: $update_in
+  - platform: absolute_humidity
+    name: "ALF"
+    temperature: air_temperature_inside
+    humidity: relative_humidity_inside
+    id: absolute_humidity_inside
+
+  # use humidity sensor from Werkstatt as outside measurement
+  - platform: homeassistant
+    name: "Aussen ALF"
+    entity_id: sensor.werkstatt_aussen_alf
+    id: absolute_humidity_outside
+    
+  - platform: template
+    id: diff_absolute_humidity
+    update_interval: $update_in
+    lambda: |-
+      return id(absolute_humidity_inside).state - id(absolute_humidity_outside).state;
+      
+binary_sensor:
+  # calculate if humidity outside is close to or lower than inside right now
+  - platform: analog_threshold
+    id: suggest_venting
+    sensor_id: diff_absolute_humidity
+    threshold: $venting_treshold
+    on_press:
+      - output.turn_on: fan_update
+    on_release:
+      - output.turn_on: fan_update
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+switch:
+  # LED that shows if windows can be left open without letting humidity in
+  - platform: gpio
+    id: vent_led
+    name: "Fenster auf"
+    pin:
+      number: D4
+      inverted: true
+    icon: 'mdi:door-open'
+    
+output:
+  # Control loop that does the actual automation
+  - platform: template
+    id: fan_update
+    type: binary
+    write_action:
+      # Control vent LED
+      if:
+        condition:
+          and:
+            - lambda: |-
+                auto now = id(homeassistant_time).now();
+                return now.hour >= 9 && now.hour < 22;
+            - binary_sensor.is_on: suggest_venting
+        then:
+          - switch.turn_on: vent_led
+          - logger.log: "LED on"
+        else:
+          - switch.turn_off: vent_led
+          - logger.log: "LED off"

@@ -1,0 +1,29 @@
+# settings config constants
+substitutions:
+  update_in: 60s
+  
+button:
+  - platform: restart
+    name: "Restart"
+    
+sensor:
+  - platform: dht
+    pin: D1
+    model: AM2302
+    temperature:
+      name: "T"
+      id: air_temperature_inside
+      filters:
+      - offset: -0.4
+    humidity:
+      name: "RLF"
+      id: relative_humidity_inside
+      accuracy_decimals: 1
+      filters:
+      - offset: -0.5
+    update_interval: $update_in
+  - platform: absolute_humidity
+    name: "ALF"
+    temperature: air_temperature_inside
+    humidity: relative_humidity_inside
+    id: absolute_humidity_inside

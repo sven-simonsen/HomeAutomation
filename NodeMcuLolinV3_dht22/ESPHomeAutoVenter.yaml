@@ -1,0 +1,137 @@
+# settings config constants
+substitutions:
+  update_in: 60s
+  venting_delay: 5min
+  venting_treshold: "0.2"
+  door_open_treshold: "-0.5"
+
+button:
+  - platform: restart
+    name: "Restart"
+
+sensor:
+  - platform: dht
+    pin: D1
+    model: DHT22
+    temperature:
+      name: "T"
+      id: air_temperature_inside
+    humidity:
+      name: "RLF"
+      id: relative_humidity_inside
+      accuracy_decimals: 1
+      filters:
+      - offset: 4
+    update_interval: $update_in
+  - platform: absolute_humidity
+    name: "ALF"
+    temperature: air_temperature_inside
+    humidity: relative_humidity_inside
+    id: absolute_humidity_inside
+    
+  - platform: dht
+    pin: D2
+    model: AM2302
+    temperature:
+      name: "Aussen T"
+      id: air_temperature_outside
+      filters:
+      - offset: -1.5
+    humidity:
+      name: "Aussen RLF"
+      id: relative_humidity_outside
+      accuracy_decimals: 1
+      filters:
+      - offset: 2
+    update_interval: $update_in
+  - platform: absolute_humidity
+    name: "Aussen ALF"
+    temperature: air_temperature_outside
+    humidity: relative_humidity_outside
+    id: absolute_humidity_outside
+    
+    
+  - platform: template
+    id: diff_absolute_humidity
+    update_interval: $update_in
+    lambda: |-
+      return id(absolute_humidity_inside).state - id(absolute_humidity_outside).state;
+    
+binary_sensor:
+  # calculate if humidity outside is markedly lower for some time now
+  - platform: analog_threshold
+    id: suggest_venting
+    sensor_id: diff_absolute_humidity
+    threshold: $venting_treshold
+    filters:
+      - delayed_on: $venting_delay
+    on_press:
+      - output.turn_on: fan_update
+    on_release:
+      - output.turn_on: fan_update
+  
+  # calculate if humidity outside is close to or lower than inside right now
+  - platform: analog_threshold
+    id: suggest_door_open
+    sensor_id: diff_absolute_humidity
+    threshold: $door_open_treshold
+    on_press:
+      - output.turn_on: fan_update
+    on_release:
+      - output.turn_on: fan_update
+
+switch:
+  # Automatic fan control enabled?
+  - platform: template
+    name: "Lüfter-Automatik"
+    id: fan_auto_mode
+    icon: 'mdi:fan-auto'
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - output.turn_on: fan_update
+    on_turn_off:
+      - output.turn_on: fan_update
+
+  # LED that shows if door can be left open without letting humidity in
+  - platform: gpio
+    id: door_led
+    name: "Tür kann auf bleiben"
+    pin:
+      number: D4
+      inverted: true
+    icon: 'mdi:door-open'
+
+  # Fan power on or off?
+  - platform: gpio
+    id: fan_power
+    name: "Lüfter an"
+    pin: D5
+    icon: 'mdi:fan'
+    restore_mode: RESTORE_DEFAULT_OFF
+    
+output:
+  # Control loop that does the actual automation
+  - platform: template
+    id: fan_update
+    type: binary
+    write_action:
+      # Control Fan power
+      - if:
+          condition:
+            and:
+              - switch.is_on: fan_auto_mode
+              - binary_sensor.is_on: suggest_venting
+          then:
+            - switch.turn_on: fan_power
+          else:
+            - switch.turn_off: fan_power
+      
+      # Control Door LED
+      - if:
+          condition:
+            binary_sensor.is_on: suggest_door_open
+          then:
+            - switch.turn_on: door_led
+          else:
+            - switch.turn_off: door_led
