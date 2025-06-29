@@ -1,3 +1,5 @@
+# An ESP-Home automation that just exposes (enriched) data from an attached DHT sensor to Home Assistant.
+
 # settings config constants
 substitutions:
   update_in: 60s
