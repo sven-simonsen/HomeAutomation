@@ -1,3 +1,6 @@
+# An ESP-Home automation that compares two DHT sensors attached to the board
+# and activates a Fan if the outside sensor shows dryer air than the inside sensor.
+
 # settings config constants
 substitutions:
   update_in: 60s
